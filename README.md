@@ -23,7 +23,7 @@ wsn-ml-routing/
 
 ## How to run
 ```bash
-git clone https://github.com/<your-username>/wsn-ml-routing.git
+git clone https://github.com/coolUser2006/wsn-ml-routing.git
 cd wsn-ml-routing
 pip install -r requirements.txt
 python wsn_routing.py
