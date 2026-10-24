@@ -1,0 +1,3 @@
+protocol,first_dead_mean,first_dead_std,half_dead_mean,half_dead_std,last_dead_mean,last_dead_std,packets_mean
+LEACH,515.7,40.8,834.9,17.3,1219.4,53.0,4410.7
+ML-WSN,730.1,31.3,975.9,13.7,1124.1,26.5,4897.6

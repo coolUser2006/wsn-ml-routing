@@ -99,9 +99,9 @@ def ml_select(pos, energy, alive_idx, seed):
 
 
 # ---------------- Simulation ----------------
-def simulate(protocol):
-    pos, energy = create_network()
-    rng = np.random.default_rng(SEED)
+def simulate(protocol, seed=SEED):
+    pos, energy = create_network(seed)
+    rng = np.random.default_rng(seed)
     last_ch_round = np.full(N, -1000)
 
     alive_hist, energy_hist, packets_hist = [], [], []
@@ -131,7 +131,7 @@ def simulate(protocol):
                 d = np.linalg.norm(pos[chs] - pos[n], axis=1)
                 member_ch[n] = chs[np.argmin(d)]
         else:
-            chs, member_ch = ml_select(pos, energy, alive_idx, SEED + r)
+            chs, member_ch = ml_select(pos, energy, alive_idx, seed + r)
 
         # ---- energy consumption ----
         counts = {int(c): 0 for c in chs}
@@ -189,6 +189,83 @@ def plot_results(res):
     plt.savefig("results/lifetime_comparison.png", dpi=150); plt.close()
 
 
+# ---------------- Network picture (clusters + cluster heads) ----------------
+def plot_network(seed=SEED, save_path=None):
+    """Draw nodes, clusters, cluster heads and base station for both protocols."""
+    pos, energy = create_network(seed)
+    rng = np.random.default_rng(seed)
+    alive_idx = np.arange(N)
+    fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+
+    # LEACH
+    chs = leach_select(alive_idx, 0, np.full(N, -1000), rng)
+    leach_labels = {}
+    for n in alive_idx:
+        leach_labels[n] = n if n in chs else chs[np.argmin(np.linalg.norm(pos[chs] - pos[n], axis=1))]
+    # ML
+    ml_chs, ml_labels = ml_select(pos, energy, alive_idx, seed)
+
+    for ax, title, ch_list, labels in [(axes[0], "LEACH (random cluster heads)", chs, leach_labels),
+                                       (axes[1], "ML-WSN (K-Means + energy-aware)", ml_chs, ml_labels)]:
+        cmap = plt.get_cmap("tab20")
+        ch_ids = {int(c): i for i, c in enumerate(ch_list)}
+        for n in alive_idx:
+            c = int(labels[n])
+            ax.scatter(*pos[n], color=cmap(ch_ids[c] % 20), s=25)
+            if n != c:
+                ax.plot([pos[n][0], pos[c][0]], [pos[n][1], pos[c][1]], color=cmap(ch_ids[c] % 20), alpha=0.3, lw=0.7)
+        ax.scatter(pos[ch_list][:, 0], pos[ch_list][:, 1], marker="*", s=220, color="black", label="Cluster head", zorder=5)
+        ax.scatter(*BS, marker="^", s=150, color="red", label="Base station", zorder=5)
+        ax.set_xlim(-5, AREA + 5); ax.set_ylim(-5, BS[1] + 15)
+        ax.set_title(title); ax.set_xlabel("x (m)"); ax.set_ylabel("y (m)")
+        ax.legend(loc="lower right", fontsize=8); ax.grid(alpha=0.2)
+    fig.tight_layout()
+    if save_path:
+        fig.savefig(save_path, dpi=150)
+        plt.close(fig)
+    return fig
+
+
+# ---------------- Multiple runs (different random layouts) ----------------
+def run_multi(n_runs=10):
+    """Run both protocols on n_runs random layouts; return mean/std of each metric."""
+    out = {"LEACH": [], "ML-WSN": []}
+    for i in range(n_runs):
+        seed = SEED + i
+        print(f"  run {i + 1}/{n_runs} (seed {seed})")
+        for name, proto in [("LEACH", "LEACH"), ("ML-WSN", "ML")]:
+            r = simulate(proto, seed=seed)
+            out[name].append([r["first"], r["half"], r["last"], r["packets"][-1]])
+    return {k: np.array(v) for k, v in out.items()}
+
+
+def plot_multi(multi, save_path=None):
+    colors = {"LEACH": "tab:red", "ML-WSN": "tab:green"}
+    labels = ["First node dead", "Half nodes dead", "Last node dead"]
+    x = np.arange(3); w = 0.35
+    fig = plt.figure(figsize=(7.5, 4.8))
+    for i, (name, arr) in enumerate(multi.items()):
+        mean, std = arr[:, :3].mean(axis=0), arr[:, :3].std(axis=0)
+        plt.bar(x + i * w, mean, w, yerr=std, capsize=4, label=name, color=colors[name])
+    plt.xticks(x + w / 2, labels); plt.ylabel("Round")
+    plt.title(f"Average Lifetime over {len(next(iter(multi.values())))} Random Layouts")
+    plt.legend(); plt.tight_layout()
+    if save_path:
+        fig.savefig(save_path, dpi=150)
+        plt.close(fig)
+    return fig
+
+
+def save_multi_summary(multi):
+    with open("results/multi_run_summary.csv", "w") as f:
+        f.write("protocol,first_dead_mean,first_dead_std,half_dead_mean,half_dead_std,last_dead_mean,last_dead_std,packets_mean\n")
+        for name, arr in multi.items():
+            m, s = arr.mean(axis=0), arr.std(axis=0)
+            f.write(f"{name},{m[0]:.1f},{s[0]:.1f},{m[1]:.1f},{s[1]:.1f},{m[2]:.1f},{s[2]:.1f},{m[3]:.1f}\n")
+            print(f"{name:<8} first dead {m[0]:.0f} +/- {s[0]:.0f} | half dead {m[1]:.0f} +/- {s[1]:.0f} | "
+                  f"last dead {m[2]:.0f} +/- {s[2]:.0f} | packets {m[3]:.0f}")
+
+
 def main():
     results = {}
     for name, proto in [("LEACH", "LEACH"), ("ML-WSN", "ML")]:
@@ -205,7 +282,15 @@ def main():
             f.write(f"{name},{r['first']},{r['half']},{r['last']},{pk}\n")
 
     plot_results(results)
+    plot_network(save_path="results/network_clusters.png")
     print("\nGraphs saved in results/ folder.")
+
+    n_runs = int(os.environ.get("WSN_RUNS", 10))
+    print(f"\n=== Multi-run average ({n_runs} random layouts) ===")
+    multi = run_multi(n_runs)
+    save_multi_summary(multi)
+    plot_multi(multi, save_path="results/multi_run_lifetime.png")
+    print("\nAll results saved in results/ folder.")
 
 
 if __name__ == "__main__":
