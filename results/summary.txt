@@ -1,0 +1,3 @@
+protocol,first_dead,half_dead,last_dead,packets
+LEACH,473,823,1252,4503
+ML-WSN,761,989,1149,4996
