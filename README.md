@@ -68,5 +68,5 @@ Python, NumPy, scikit-learn, Matplotlib, Streamlit
 - Heterogeneous node energy
 - Comparison with HEED / SEP
 
-- PROJECT LINK
-- https://wsn-ml-routing-ufdqpuxszanhhnvtznjrnz.streamlit.app/
+## LIVE  PROJECT LINK
+https://wsn-ml-routing-ufdqpuxszanhhnvtznjrnz.streamlit.app/
