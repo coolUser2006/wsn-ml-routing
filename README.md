@@ -67,3 +67,6 @@ Python, NumPy, scikit-learn, Matplotlib, Streamlit
 - Mobile base station / sink
 - Heterogeneous node energy
 - Comparison with HEED / SEP
+
+- PROJECT LINK
+- https://wsn-ml-routing-ufdqpuxszanhhnvtznjrnz.streamlit.app/
